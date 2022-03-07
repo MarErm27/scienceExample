@@ -42,9 +42,9 @@ class DAO(db: Database) {
       Votes.filter { vote =>
         rel.rawIds
           .collect({
-            case (SimpleRelation("byUser"), ids: Seq[Int] @unchecked) =>
+            case (SimpleRelation("byUser"), ids: Seq[Int]@unchecked) =>
               vote.userId inSet ids
-            case (SimpleRelation("byLink"), ids: Seq[Int] @unchecked) =>
+            case (SimpleRelation("byLink"), ids: Seq[Int]@unchecked) =>
               vote.linkId inSet ids
           })
           .foldLeft(true: Rep[Boolean])(_ || _)
@@ -134,16 +134,31 @@ class DAO(db: Database) {
         .join(Users)
         .on(_.postedBy === _.id)
         .map(l =>
-          HashMap(l._1.id ->
-            HashMap("id" ->l._1.id,
-              "url"->l._1.url,
-              "description"->l._1.description,
-              "createdAt"->l._1.createdAt,
-              "name"->l._2.name))
+          (
+            l._1.id,
+            l._1.url,
+            if (labelId._2)
+              l._1.description
+            else
+              LiteralColumn(""),
+            l._1.createdAt,
+            l._2.name
+          )
         )
         .result
     }
-    db run DBIO.sequence(query).map(_.flatten)
+    db run DBIO.sequence(query)
+      .map(_.flatten)
+      .map(links =>
+        links.map(l =>
+          HashMap(l._1 ->
+            HashMap("url" -> l._2,
+              "description" -> l._3,
+              "createdAt" -> l._4,
+              "name" -> l._5)
+          )
+        )
+      )
   }
 
 }

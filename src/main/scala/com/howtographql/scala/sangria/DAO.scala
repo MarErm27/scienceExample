@@ -127,38 +127,39 @@ class DAO(db: Database) {
   def isFreshPost(ids: Seq[Int]): Future[Seq[(Int, Boolean)]] =
     db.run(isFreshPostQuery(ids).result)
 
-  def getTodayPosts(isFresh: Seq[(Int, Boolean)]): Future[Seq[(Int, String, String, DateTime, String)]] = {
+  final case class Foo(id: Int, url: String, description: String, createdAt: DateTime, name: String)
+
+  def getTodayPosts(isFresh: Seq[(Int, Boolean)]): Future[Seq[(Int, Foo)]] = {
+
     val query = isFresh.map { labelId =>
       Links
         .filter(_.id === labelId._1)
         .join(Users)
         .on(_.postedBy === _.id)
         .map(l =>
-          (
-            l._1.id,
+          (l._1.id,
             l._1.url,
-            if (labelId._2)
-              l._1.description
-            else
-              LiteralColumn(""),
+            if (labelId._2) l._1.description else LiteralColumn(""),
             l._1.createdAt,
             l._2.name
           )
         )
         .result
     }
+
     db run DBIO.sequence(query)
       .map(_.flatten)
-      .map(links =>
-        links.map(l =>
-          HashMap(l._1 ->
-            HashMap("url" -> l._2,
-              "description" -> l._3,
-              "createdAt" -> l._4,
-              "name" -> l._5)
+      .map { seq =>
+        seq.map(tuple =>
+          tuple._1 -> Foo(
+            id = tuple._1,
+            url = tuple._2,
+            description = tuple._3,
+            createdAt = tuple._4,
+            name = tuple._5
           )
         )
-      )
+      }
   }
 
 }
